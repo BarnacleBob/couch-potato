@@ -72,6 +72,13 @@ Don't leave test events in a user's `data/<station>/history.json`. They affect f
 - **RSS limit:** feeds only list the 15 newest uploads per channel. A deep back catalog would need the YouTube Data API.
 - **Windows:** in a shell opened before Node or Git was installed, `node`/`git` may not be on PATH. Use `C:\Program Files\nodejs\node.exe` and `C:\Program Files\Git\cmd\git.exe`.
 
+## Decisions (ADRs)
+
+Architecture decisions are recorded as [MADR](https://adr.github.io/madr/) files in `docs/decisions/`. Read them before changing how something fundamental works, such as where videos come from, how stations are stored, or how picks are made.
+
+- When you make a decision that's hard to reverse or that a new contributor would question, add `NNNN-short-title.md` (next number) from `adr-template.md`, in the same commit as the change.
+- Don't edit an accepted ADR's decision. Write a new one and mark the old one `superseded by ADR-NNNN`.
+
 ## Conventions
 
 - Keep it dependency-light: Node built-ins plus the Anthropic SDK. No frontend framework or build step.
