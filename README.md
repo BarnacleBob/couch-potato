@@ -22,6 +22,8 @@ Then open http://localhost:8787. `docker compose logs -f` shows what it's doing.
 
 Open it in the browser where you're logged into YouTube Premium, so the embeds play without ads.
 
+**Sharing with a friend (Docker):** set `BIND_IP` in `.env` to your Tailscale IP (`tailscale ip -4`) and `LOCK_SETTINGS=1` for watch-only, then `docker compose up -d`. They open `http://<that IP>:8787`. Their skips and likes land in your history.
+
 ## Stations
 
 Each station is a file in [`stations/`](stations/):

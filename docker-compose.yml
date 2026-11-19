@@ -8,8 +8,8 @@ services:
       HOST: 0.0.0.0
       PORT: 8787
     ports:
-      # Only reachable from this machine. Change to "8787:8787" to open it to your network.
-      - "127.0.0.1:8787:8787"
+      # Only reachable from this machine by default. Set BIND_IP in .env (e.g. your Tailscale IP) to share it.
+      - "${BIND_IP:-127.0.0.1}:8787:8787"
     volumes:
       - ./data:/app/data          # history, lineups, subscriptions, caches
       - ./stations:/app/stations  # station presets; edits from Settings land in your checkout

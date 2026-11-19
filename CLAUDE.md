@@ -15,7 +15,7 @@ docker compose restart           # pick up .env changes
 docker compose down              # stop
 ```
 
-The compose file mounts `./data` (personal state) and `./stations` (presets) into the container. It reads `.env`, and `TZ` in `.env` sets the container's timezone.
+The compose file mounts `./data` (personal state) and `./stations` (presets) into the container. It reads `.env`, and `TZ` in `.env` sets the container's timezone. `BIND_IP` in `.env` sets the host address the port binds to (default `127.0.0.1`; a Tailscale IP shares it on the tailnet). `LOCK_SETTINGS=1` makes the server watch-only: config routes return 403 and the page hides ⚙ and 🚫.
 
 **Without Docker:** `npm install`, then `node server.mjs` (or `start.bat` on Windows, which also opens the browser). It listens on `127.0.0.1:8787` unless `HOST`/`PORT` are set.
 

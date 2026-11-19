@@ -13,6 +13,10 @@ try { process.loadEnvFile(path.join(here, ".env")); } catch {}
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || "127.0.0.1"; // Docker sets 0.0.0.0; locally, stay off the network
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
+// LOCK_SETTINGS=1: watch-only mode for sharing (no station edits, lineup changes or channel bans).
+const LOCKED = /^(1|true|yes)$/i.test(process.env.LOCK_SETTINGS || "");
+const LOCKED_ROUTES = new Set(["/api/station", "/api/station/create", "/api/subs", "/api/lineup/build",
+  "/api/lineup/add", "/api/lineup/remove", "/api/pool/refresh"]);
 const DATA = path.join(here, "data");          // personal: history, lineups, subscriptions, caches (gitignored)
 const STATIONS = path.join(here, "stations");  // shared: station presets (committed)
 const PUBLIC = path.join(here, "public");
@@ -436,6 +440,7 @@ const num = (x, d) => (x !== "" && x != null && Number.isFinite(+x) && +x >= 0 ?
 const routes = {
   "GET /api/stations": async () => ({
     stations: (await listStations()).map(({ id, name, minMinutes, maxMinutes }) => ({ id, name, minMinutes, maxMinutes })),
+    locked: LOCKED,
   }),
   "GET /api/state": async (_, __, q) => {
     const station = await getStation(q.get("station"));
@@ -536,6 +541,10 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   const route = routes[`${req.method} ${url.pathname}`];
   try {
+    if (route && LOCKED && LOCKED_ROUTES.has(url.pathname)) {
+      log("config", c.yellow(`blocked ${req.method} ${url.pathname}: settings are locked (LOCK_SETTINGS)`));
+      return send(res, 403, { error: "Settings are locked on this server." });
+    }
     if (route) {
       const raw = req.method === "POST" ? await body(req) : "";
       let parsed = {}; try { parsed = raw ? JSON.parse(raw) : {}; } catch {}
@@ -560,6 +569,7 @@ http.createServer(async (req, res) => {
 }).listen(PORT, HOST, async () => {
   const stations = await listStations();
   console.log(c.bold(`\n🛋️  Couch Potato on http://localhost:${PORT}`));
+  if (LOCKED) console.log(c.yellow(`  settings locked (LOCK_SETTINGS): watch-only`));
   console.log(c.dim(`  model ${MODEL} · API key ${process.env.ANTHROPIC_API_KEY?.trim() ? "set" : c.red("MISSING")} · ${Object.keys(durations).length} video lengths cached`));
   for (const [i, s] of stations.entries()) {
     const lineup = (await readJson(stationFile(s.id, "lineup.json"), s.seedChannels)).filter((ch) => !ch.banned);

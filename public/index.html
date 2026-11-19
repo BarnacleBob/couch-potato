@@ -303,7 +303,10 @@ function renderBar() {
 
 // ---------- stations ----------
 async function loadStations() {
-  stations = (await api("/api/stations")).stations;
+  const r = await api("/api/stations");
+  stations = r.stations;
+  // Watch-only server (LOCK_SETTINGS): hide everything that changes a station.
+  for (const id of ["openSettings1", "openSettings2", "banBtn"]) $(id).hidden = !!r.locked;
   if (!stations.some((s) => s.id === stationId)) stationId = stations.find((s) => s.id === store.get("cp.station"))?.id || stations[0]?.id;
   if (!stations.some((s) => s.id === editId)) editId = stationId;
   const opts = (sel, val) => {
