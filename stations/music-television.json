@@ -1,0 +1,10 @@
+{
+  "name": "Music Television",
+  "order": 2,
+  "vibe": "Wall-to-wall music videos, like a music video channel in its heyday.\nOfficial music videos across eras (80s, 90s, 2000s, plus some newer): pop, rock, alternative, hip-hop, R&B, new wave.\nKeep a good mix of eras and genres, and don't play the same artist twice in a row.\nGood: official music videos, iconic and fun videos, the occasional deep cut.\nAvoid: lyric videos, audio-only or static-image uploads, full live concerts, interviews, reactions, behind-the-scenes, trailers.",
+  "minMinutes": 2,
+  "maxMinutes": 10,
+  "useSubscriptions": false,
+  "picksPerCall": 5,
+  "seedChannels": []
+}

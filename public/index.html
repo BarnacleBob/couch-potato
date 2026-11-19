@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Couch Potato</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+<style>
+  :root {
+    --bg: #0d0d10; --panel: #17171c; --line: #2a2a33; --text: #ececf1; --muted: #9a9aa8;
+    --accent: #f5b83d; --danger: #ef6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  button, select { font: inherit; color: inherit; background: #26262e; border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover, select:hover { background: #30303a; }
+  button.primary { background: var(--accent); color: #1a1406; border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea { font: inherit; color: var(--text); background: #0f0f13; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px; width: 100%; }
+  input[type=checkbox] { width: auto; }
+  textarea { resize: vertical; min-height: 150px; }
+
+  #player { position: fixed; inset: 0; width: 100%; height: 100%; }
+
+  /* start screen */
+  #start { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #1d1b14, var(--bg) 70%); z-index: 5; overflow-y: auto; }
+  #start .box { text-align: center; padding: 24px; max-width: 460px; width: 100%; }
+  #start h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: .5px; }
+  #start h1 span { color: var(--accent); }
+  #start p { color: var(--muted); margin: 0 0 20px; }
+  #stationButtons { display: grid; gap: 8px; margin-bottom: 12px; }
+  #stationButtons button { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; text-align: left; }
+  #stationButtons button small { color: var(--muted); }
+  #stationButtons button.primary small { color: #5a4612; }
+  #startMsg { margin-top: 14px; color: var(--accent); min-height: 1.4em; }
+
+  /* channel bug, like a TV showing what channel you switched to */
+  #bug { position: fixed; top: 14px; left: 16px; z-index: 4; font: 700 22px/1 ui-monospace, Consolas, monospace;
+    color: #b8ff9c; text-shadow: 0 0 6px rgba(120,255,120,.6), 2px 2px 0 #000; opacity: 0; transition: opacity .4s; pointer-events: none; }
+  #bug.show { opacity: 1; transition: none; }
+
+  /* hover bar */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 28px 14px 12px; z-index: 3;
+    background: linear-gradient(transparent, rgba(0,0,0,.85) 45%); opacity: 0; transition: opacity .25s; pointer-events: none; }
+  body.show-bar #bar { opacity: 1; pointer-events: auto; }
+  #bar .now { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  #bar .meta { flex: 1; min-width: 180px; }
+  #bar .title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bar .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bar .why { color: var(--accent); }
+  #bar .btns { display: flex; gap: 6px; flex-shrink: 0; }
+  #bar .btns button, #bar .btns select { padding: 6px 9px; }
+  #stationSelect { max-width: 190px; }
+  #next { margin-top: 8px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* settings */
+  #settings { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--panel);
+    border-left: 1px solid var(--line); z-index: 10; transform: translateX(100%); transition: transform .2s; overflow-y: auto; padding: 16px; }
+  #settings.open { transform: none; }
+  #settings h2 { margin: 0; font-size: 18px; }
+  #settings h3 { margin: 22px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  #settings .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  #settings .hint a { color: var(--accent); }
+  #settings label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  #lineup { list-style: none; margin: 8px 0 0; padding: 0; }
+  #lineup li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  #lineup .name { flex: 1; min-width: 0; }
+  #lineup .name div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #lineup .name small { color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.ai { color: var(--accent); border-color: #6b5420; }
+  #lineup button { padding: 2px 8px; color: var(--danger); }
+
+  #toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #2b2416; color: var(--accent);
+    border: 1px solid #6b5420; padding: 8px 14px; border-radius: 8px; z-index: 20; display: none; max-width: 90vw; }
+</style>
+</head>
+<body>
+<div id="player"></div>
+<div id="bug"></div>
+
+<div id="start">
+  <div class="box">
+    <h1>Couch <span>Potato</span></h1>
+    <p>Lean-back YouTube. Claude picks what's next.</p>
+    <div id="stationButtons"><button disabled>Loading player…</button></div>
+    <div class="row" style="justify-content:center"><button id="openSettings1">Settings</button></div>
+    <div id="startMsg"></div>
+  </div>
+</div>
+
+<div id="bar">
+  <div class="now">
+    <div class="meta">
+      <div class="title" id="nowTitle">—</div>
+      <div class="sub"><span id="nowChannel"></span> · <span class="why" id="nowWhy"></span></div>
+    </div>
+    <div class="btns">
+      <select id="stationSelect" title="Change station (keys 1-9)"></select>
+      <button id="likeBtn" title="More like this">👍</button>
+      <button id="skipBtn" title="Skip (N)">Skip ⏭</button>
+      <button id="banBtn" title="Never play this channel on this station again">🚫</button>
+      <button id="openSettings2" title="Settings">⚙</button>
+    </div>
+  </div>
+  <div id="next"></div>
+</div>
+
+<aside id="settings">
+  <div class="head"><h2 id="settingsTitle">Station</h2><button id="closeSettings">Close</button></div>
+  <div class="row" style="margin-top:10px">
+    <select id="settingsStation" style="flex:1"></select>
+    <button id="newStationBtn">+ New station</button>
+  </div>
+  <div class="hint">These settings live in <code>stations/&lt;name&gt;.json</code>. Commit the file to share the station.</div>
+
+  <h3>Name</h3>
+  <input id="stName">
+
+  <h3>Vibe</h3>
+  <div class="hint">What this station plays. Claude reads this before every pick.</div>
+  <textarea id="vibe"></textarea>
+  <div class="row" style="margin-top:8px">
+    <label>Video length</label>
+    <input id="minMinutes" type="number" min="0" style="width:70px"> <span>to</span>
+    <input id="maxMinutes" type="number" min="1" style="width:70px"> <span>min</span>
+  </div>
+  <div class="hint">Anything shorter or longer never gets picked. Full episodes are usually 20+ min, clips under 12, music videos 3-6.</div>
+  <div class="row"><input type="checkbox" id="useSubs"><label for="useSubs" style="color:var(--text)">Use my subscriptions when building the lineup</label></div>
+  <div class="row" style="margin-top:10px"><button id="saveStation">Save station</button></div>
+
+  <h3>Lineup</h3>
+  <div class="hint">Claude picks channels that fit the vibe (and keeps your matching subscriptions if that's on). Running it again adds more.</div>
+  <div class="row"><button class="primary" id="buildBtn">Build lineup with AI</button><button id="refreshBtn">Refresh videos</button></div>
+  <div class="row" style="margin-top:8px"><input id="addInput" placeholder="@handle, channel URL or UC… id"><button id="addBtn">Add</button></div>
+  <ul id="lineup"></ul>
+
+  <h3>Your subscriptions (all stations)</h3>
+  <div class="hint">
+    Export them from <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a>:
+    deselect all, tick <b>YouTube and YouTube Music</b>, set "All YouTube data included" to only <b>subscriptions</b>.
+    Then pick <code>subscriptions.csv</code> from the export here.
+  </div>
+  <div class="row"><input type="file" id="subsFile" accept=".csv"></div>
+  <div class="hint" id="subsInfo"></div>
+
+  <div class="hint" id="footer" style="margin-top:18px"></div>
+</aside>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+let player, playerReady = false, started = false;
+let stations = [], stationId = null;   // the station on air
+let editId = null;                      // the station shown in Settings
+let current = null, queue = [], fetching = null, generation = 0, state = null;
+
+async function api(path, body, raw) {
+  const opts = body === undefined && raw === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": raw !== undefined ? "text/csv" : "application/json" },
+    body: raw !== undefined ? raw : JSON.stringify(body),
+  };
+  const r = await fetch(path, opts);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// Mirror browser-side errors into the server console.
+function clientLog(message) {
+  console.warn("[couch-potato]", message);
+  fetch("/api/clientlog", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }).catch(() => {});
+}
+window.addEventListener("error", (e) => clientLog(`${e.message} (${e.filename?.split("/").pop()}:${e.lineno})`));
+window.addEventListener("unhandledrejection", (e) => clientLog(`unhandled: ${e.reason?.message || e.reason}`));
+
+let toastTimer;
+function toast(msg, ms = 4000) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.style.display = "none"), ms);
+}
+
+let bugTimer;
+function showBug() {
+  const i = stations.findIndex((s) => s.id === stationId);
+  const b = $("bug"); b.textContent = `CH ${String(i + 1).padStart(2, "0")}  ${stations[i]?.name.toUpperCase() || ""}`;
+  b.classList.add("show"); clearTimeout(bugTimer); bugTimer = setTimeout(() => b.classList.remove("show"), 2500);
+}
+
+// ---------- player ----------
+const tag = document.createElement("script");
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+window.onYouTubeIframeAPIReady = () => {
+  player = new YT.Player("player", {
+    width: "100%", height: "100%",
+    playerVars: { autoplay: 1, rel: 0, playsinline: 1, iv_load_policy: 3 },
+    events: {
+      onReady: () => { playerReady = true; renderStart(); },
+      onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) { log("finished"); playNext(); } },
+      onError: (e) => { clientLog(`player error ${e.data} on ${current?.videoId} (${current?.title})`); log("unplayable"); playNext(); },
+    },
+  });
+};
+
+function ensureQueue() {
+  if (queue.length >= 2 || fetching) return fetching;
+  const gen = generation;
+  const exclude = [current?.videoId, ...queue.map((v) => v.videoId)].filter(Boolean);
+  fetching = api("/api/next", { station: stationId, exclude })
+    .then((r) => { if (gen === generation) queue.push(...r.picks.filter((p) => !exclude.includes(p.videoId))); })
+    .catch((e) => { if (gen === generation) { toast(e.message, 8000); $("startMsg").textContent = e.message; } })
+    .finally(() => { fetching = null; renderBar(); if (gen !== generation) ensureQueue(); });
+  renderBar();
+  return fetching;
+}
+
+async function playNext() {
+  // A pick for a station we just left gets discarded, so wait for the follow-up request too.
+  for (let tries = 0; !queue.length && tries < 3; tries++) await ensureQueue();
+  if (!queue.length) { current = null; renderBar(); return false; }
+  current = queue.shift();
+  current.durationSec = current.durationSec || 0;
+  player.loadVideoById(current.videoId);
+  log("started");
+  renderBar();
+  ensureQueue();
+  return true;
+}
+
+function log(outcome) {
+  if (!current) return;
+  let watchedSec = 0, durationSec = current.durationSec || 0;
+  try { watchedSec = Math.round(player.getCurrentTime() || 0); durationSec = Math.round(player.getDuration() || 0) || durationSec; } catch {}
+  if (outcome === "started") watchedSec = 0;
+  api("/api/event", {
+    station: stationId, videoId: current.videoId, title: current.title, channelId: current.channelId,
+    channelTitle: current.channelTitle, outcome, watchedSec, durationSec,
+  }).catch(() => {});
+}
+
+function renderBar() {
+  $("nowTitle").textContent = current ? current.title : (fetching ? "Picking…" : "Nothing playing");
+  $("nowChannel").textContent = current ? current.channelTitle : "";
+  $("nowWhy").textContent = current ? current.reason : "";
+  $("next").textContent = queue.length ? "Up next: " + queue.map((v) => `${v.title} (${v.channelTitle})`).join("  ·  ") : (fetching ? "Picking what's next…" : "");
+}
+
+// ---------- stations ----------
+async function loadStations() {
+  stations = (await api("/api/stations")).stations;
+  if (!stations.some((s) => s.id === stationId)) stationId = stations.find((s) => s.id === store.get("cp.station"))?.id || stations[0]?.id;
+  if (!stations.some((s) => s.id === editId)) editId = stationId;
+  const opts = (sel, val) => {
+    sel.innerHTML = "";
+    stations.forEach((s, i) => { const o = new Option(`${i + 1} · ${s.name}`, s.id); sel.add(o); });
+    sel.value = val;
+  };
+  opts($("stationSelect"), stationId);
+  opts($("settingsStation"), editId);
+  renderStart();
+}
+
+async function tuneTo(id) {
+  if (!id) return;
+  const changed = id !== stationId;
+  stationId = id; store.set("cp.station", id);
+  $("stationSelect").value = id;
+  if (!started) return;
+  if (changed) {
+    generation++; queue = []; current = null;
+    api("/api/event", { station: id, outcome: "tuned" }).catch(() => {});
+    try { player.stopVideo(); } catch {}
+  }
+  showBug();
+  renderBar();
+  if (changed) await playNext();
+}
+
+function renderStart() {
+  const box = $("stationButtons");
+  box.innerHTML = "";
+  if (!playerReady) { box.innerHTML = "<button disabled>Loading player…</button>"; return; }
+  stations.forEach((s, i) => {
+    const b = document.createElement("button");
+    if (s.id === stationId) b.className = "primary";
+    b.innerHTML = `<span></span><small></small>`;
+    b.querySelector("span").textContent = `${i + 1}  ${s.name}`;
+    b.querySelector("small").textContent = `${s.minMinutes}-${s.maxMinutes} min`;
+    b.onclick = () => start(s.id);
+    box.appendChild(b);
+  });
+  if (state && !state.hasKey) $("startMsg").textContent = "Add your Anthropic API key to .env and restart the server.";
+}
+
+async function start(id) {
+  stationId = id; store.set("cp.station", id); $("stationSelect").value = id;
+  started = true;
+  $("startMsg").textContent = "Picking…";
+  api("/api/event", { station: id, outcome: "tuned" }).catch(() => {});
+  if (await playNext()) { $("start").style.display = "none"; showBug(); }
+}
+
+// ---------- controls ----------
+$("stationSelect").onchange = (e) => tuneTo(e.target.value);
+$("skipBtn").onclick = () => { log("skipped"); playNext(); };
+$("likeBtn").onclick = () => { log("liked"); toast("Noted, more like this."); };
+$("banBtn").onclick = async () => {
+  if (!current) return;
+  const ch = current;
+  await api("/api/lineup/remove", { station: stationId, id: ch.channelId }).catch((e) => toast(e.message));
+  log("skipped");
+  queue = queue.filter((v) => v.channelId !== ch.channelId);
+  toast(`Removed ${ch.channelTitle} from this station.`);
+  playNext();
+  if ($("settings").classList.contains("open")) loadState();
+};
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea, select")) return;
+  if (e.key === "n" || e.key === "N") $("skipBtn").click();
+  const n = Number(e.key);
+  if (n >= 1 && n <= 9 && stations[n - 1]) started ? tuneTo(stations[n - 1].id) : start(stations[n - 1].id);
+});
+
+let hideTimer;
+document.addEventListener("mousemove", () => {
+  document.body.classList.add("show-bar");
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => { if (!$("bar").matches(":hover")) document.body.classList.remove("show-bar"); }, 2500);
+});
+document.addEventListener("mouseleave", () => document.body.classList.remove("show-bar"));
+
+// ---------- settings ----------
+const openSettings = () => { editId = stationId; $("settingsStation").value = editId; $("settings").classList.add("open"); loadState(); };
+$("openSettings1").onclick = openSettings;
+$("openSettings2").onclick = openSettings;
+$("closeSettings").onclick = () => $("settings").classList.remove("open");
+$("settingsStation").onchange = (e) => { editId = e.target.value; loadState(); };
+
+async function loadState() {
+  if (!editId) return;
+  state = await api(`/api/state?station=${encodeURIComponent(editId)}`);
+  const s = state.station;
+  $("settingsTitle").textContent = s.name;
+  $("stName").value = s.name;
+  $("vibe").value = s.vibe;
+  $("minMinutes").value = s.minMinutes;
+  $("maxMinutes").value = s.maxMinutes;
+  $("useSubs").checked = !!s.useSubscriptions;
+  $("subsInfo").textContent = state.subsCount ? `${state.subsCount} subscriptions imported.` : "No subscriptions imported yet.";
+  const live = state.lineup.filter((c) => !c.banned);
+  $("lineup").innerHTML = live.length ? "" : `<li class="hint">No channels yet. Click "Build lineup with AI" or add one.</li>`;
+  for (const c of live) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="name"><div></div><small></small></div><span class="tag"></span><button title="Remove">×</button>`;
+    li.querySelector(".name div").textContent = c.title;
+    li.querySelector("small").textContent = c.why || "";
+    const t = li.querySelector(".tag");
+    t.textContent = { ai: "AI pick", sub: "sub", preset: "preset" }[c.source] || "added";
+    if (c.source === "ai") t.classList.add("ai");
+    li.querySelector("button").onclick = async () => { await api("/api/lineup/remove", { station: editId, id: c.id }); loadState(); };
+    $("lineup").appendChild(li);
+  }
+  $("footer").textContent = `${live.length} channels · ${state.poolSize} videos in pool · model: ${state.model}`;
+  renderStart();
+}
+
+$("saveStation").onclick = async () => {
+  await api("/api/station", {
+    station: editId, name: $("stName").value, vibe: $("vibe").value,
+    minMinutes: $("minMinutes").value, maxMinutes: $("maxMinutes").value, useSubscriptions: $("useSubs").checked,
+  }).catch((e) => toast(e.message));
+  if (editId === stationId) { generation++; queue = []; renderBar(); if (started) ensureQueue(); } // apply right away
+  toast("Saved. The next picks use the new settings.");
+  await loadStations(); loadState();
+};
+$("newStationBtn").onclick = async () => {
+  const name = prompt("Name the new station:", "");
+  if (!name) return;
+  try { const r = await api("/api/station/create", { name }); editId = r.id; await loadStations(); $("settingsStation").value = editId; loadState(); toast("Station created. Write its vibe, save, then build its lineup."); }
+  catch (e) { toast(e.message); }
+};
+$("subsFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = await api("/api/subs", undefined, await f.text()).catch((err) => toast(err.message));
+  if (r) toast(`Imported ${r.count} subscriptions.`);
+  loadState();
+};
+$("buildBtn").onclick = async () => {
+  const b = $("buildBtn"); b.disabled = true; b.textContent = "Claude is thinking…";
+  try {
+    const r = await api("/api/lineup/build", { station: editId });
+    toast(`Added ${r.added} channels` + (r.keptSubs ? ` (${r.keptSubs} from your subs)` : "") + "." + (r.unresolved.length ? ` Couldn't find: ${r.unresolved.join(", ")}` : ""), 9000);
+  } catch (e) { toast(e.message, 8000); }
+  b.disabled = false; b.textContent = "Build lineup with AI";
+  loadState();
+};
+$("refreshBtn").onclick = async () => {
+  const b = $("refreshBtn"); b.disabled = true;
+  try { const r = await api("/api/pool/refresh", { station: editId }); toast(`${r.size} videos in the pool.`); } catch (e) { toast(e.message); }
+  b.disabled = false; loadState();
+};
+$("addBtn").onclick = async () => {
+  try { const c = await api("/api/lineup/add", { station: editId, input: $("addInput").value }); toast(`Added ${c.title}.`); $("addInput").value = ""; }
+  catch (e) { toast(e.message); }
+  loadState();
+};
+
+loadStations().then(() => { editId = stationId; return loadState(); }).catch((e) => toast(e.message));
+</script>
+</body>
+</html>

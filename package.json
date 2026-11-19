@@ -1,0 +1,13 @@
+{
+  "name": "couch-potato",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Lean-back YouTube stations where Claude picks what's next instead of the algorithm.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0"
+  }
+}

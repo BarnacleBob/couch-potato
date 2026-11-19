@@ -1,0 +1,12 @@
+{
+  "name": "Afternoon Game Shows",
+  "order": 1,
+  "vibe": "Weekday-afternoon background TV, like daytime game shows (The Price Is Right).\nLean-back, low-stakes, episodic, fine to half-watch while working.\nGood: full episodes of game shows, competitions, cooking, home/restoration/making,\nchill documentaries, travel, light comedy, panel shows.\nAvoid: news, politics, outrage/drama, true crime, anything that needs close attention,\nclickbait reaction videos, clips and highlight reels, music videos, multi-hour livestream VODs.",
+  "minMinutes": 15,
+  "maxMinutes": 180,
+  "useSubscriptions": true,
+  "picksPerCall": 3,
+  "seedChannels": [
+    { "id": "UCNkETBwkARrGDx-G7P-jLJg", "title": "BUZZR" }
+  ]
+}
