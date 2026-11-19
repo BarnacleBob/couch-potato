@@ -11,6 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 try { process.loadEnvFile(path.join(here, ".env")); } catch {}
 
 const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || "127.0.0.1"; // Docker sets 0.0.0.0; locally, stay off the network
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 const DATA = path.join(here, "data");          // personal: history, lineups, subscriptions, caches (gitignored)
 const STATIONS = path.join(here, "stations");  // shared: station presets (committed)
@@ -556,7 +557,7 @@ http.createServer(async (req, res) => {
     if (!(err instanceof Anthropic.APIError) && err.stack) console.error(c.dim(err.stack.split("\n").slice(1, 4).join("\n")));
     send(res, 500, { error: msg });
   }
-}).listen(PORT, "127.0.0.1", async () => {
+}).listen(PORT, HOST, async () => {
   const stations = await listStations();
   console.log(c.bold(`\n🛋️  Couch Potato on http://localhost:${PORT}`));
   console.log(c.dim(`  model ${MODEL} · API key ${process.env.ANTHROPIC_API_KEY?.trim() ? "set" : c.red("MISSING")} · ${Object.keys(durations).length} video lengths cached`));
