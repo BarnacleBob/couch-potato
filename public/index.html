@@ -349,6 +349,8 @@ function renderStart() {
     box.appendChild(b);
   });
   if (state && !state.hasKey) $("startMsg").textContent = "Add your Anthropic API key to .env and restart the server.";
+  // YouTube refuses many label/VEVO embeds (error 150) on pages opened by a bare IP address.
+  else if (/^[\d.]+$|^\[/.test(location.hostname)) $("startMsg").textContent = "Heads up: opened by IP address, so many music videos won't play. Use a hostname instead (localhost, or your Tailscale name).";
 }
 
 async function start(id) {

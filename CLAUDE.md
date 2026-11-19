@@ -68,7 +68,7 @@ Don't leave test events in a user's `data/<station>/history.json`. They affect f
 - **Keyboard focus:** clicking the video moves focus into YouTube's iframe, which swallows key presses. A `window` blur handler hands focus back to the page. Keep it, or shortcuts break.
 - **Captions:** the embed follows the viewer's YouTube account setting. `applyCaptions()` re-applies the CC choice on each `PLAYING` event and again a few seconds later.
 - **YouTube throttling:** parallel watch-page fetches throttle above about 4 at once (see `fillDurations`). Failed lookups aren't cached and get retried later.
-- **Embed errors:** player error 101/150 means the video can't be embedded. It's logged as `unplayable` and auto-skipped.
+- **Embed errors:** player error 101/150 means the video can't be embedded. It's logged as `unplayable` and auto-skipped. Label/VEVO videos also throw 150 when the page is opened by a bare IP (e.g. a Tailscale IP), so always use a hostname; the start screen warns about this.
 - **RSS limit:** feeds only list the 15 newest uploads per channel. A deep back catalog would need the YouTube Data API.
 - **Windows:** in a shell opened before Node or Git was installed, `node`/`git` may not be on PATH. Use `C:\Program Files\nodejs\node.exe` and `C:\Program Files\Git\cmd\git.exe`.
 

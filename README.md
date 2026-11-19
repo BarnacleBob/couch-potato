@@ -22,7 +22,7 @@ Then open http://localhost:8787. `docker compose logs -f` shows what it's doing.
 
 Open it in the browser where you're logged into YouTube Premium, so the embeds play without ads.
 
-**Sharing with a friend (Docker):** set `BIND_IP` in `.env` to your Tailscale IP (`tailscale ip -4`) and `LOCK_SETTINGS=1` for watch-only, then `docker compose up -d`. They open `http://<that IP>:8787`. Their skips and likes land in your history.
+**Sharing with a friend (Docker):** set `BIND_IP` in `.env` to your Tailscale IP (`tailscale ip -4`) and `LOCK_SETTINGS=1` for watch-only, then `docker compose up -d`. They open `http://<your-machine>.<tailnet>.ts.net:8787` (your MagicDNS name). **Use the name, not the IP**: YouTube refuses many music-label embeds on pages opened by a bare IP. Their skips and likes land in your history.
 
 ## Stations
 
