@@ -58,7 +58,7 @@ The server console logs every step: feed fetches, length lookups, the filter fun
 
 ## Controls
 
-Hover the video to bring up the bar.
+The control strip sits under the video.
 
 | Key | Button | What it does |
 |---|---|---|
