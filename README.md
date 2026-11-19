@@ -4,10 +4,21 @@ Lean-back YouTube for the corner of your screen. You pick a **station**, and Cla
 
 ## Setup
 
+Copy `.env.example` to `.env` and paste in your Anthropic API key (and set `TZ` if you're not on US Eastern time).
+
+**With Docker:**
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:8787. `docker compose logs -f` shows what it's doing.
+
+**Without Docker:**
+
 1. Install [Node.js](https://nodejs.org/) LTS.
-2. `npm install`
-3. Copy `.env.example` to `.env` and paste in your Anthropic API key.
-4. Run `start.bat` (or `node server.mjs`), then open http://localhost:8787.
+2. Run `npm install`.
+3. Run `start.bat` (or `node server.mjs`), then open http://localhost:8787.
 
 Open it in the browser where you're logged into YouTube Premium, so the embeds play without ads.
 
