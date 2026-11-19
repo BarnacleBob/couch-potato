@@ -54,6 +54,19 @@
   #bar .btns { display: flex; gap: 6px; flex-shrink: 0; }
   #bar .btns button, #bar .btns select { padding: 6px 9px; }
   #stationSelect { max-width: 190px; }
+  #ccBtn.on { background: var(--accent); color: #1a1406; border-color: var(--accent); }
+
+  /* skip menu */
+  #skipMenu { position: absolute; right: 14px; bottom: calc(100% - 18px); width: min(320px, calc(100vw - 28px));
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: none;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); max-height: calc(100vh - 100px); overflow-y: auto; }
+  body.skip-open #skipMenu { display: block; }
+  body.skip-open #bar { opacity: 1; pointer-events: auto; }
+  #skipMenu .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; margin: 2px 2px 6px; }
+  #skipMenu .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  #skipMenu .chips button { padding: 4px 10px; border-radius: 99px; font-size: 13px; }
+  #skipMenu .just { width: 100%; margin-bottom: 10px; }
+  #skipMenu kbd { font: 11px ui-monospace, Consolas, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
   #next { margin-top: 8px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* settings */
@@ -102,13 +115,20 @@
     </div>
     <div class="btns">
       <select id="stationSelect" title="Change station (keys 1-9)"></select>
+      <button id="ccBtn" title="Captions (C)">CC</button>
       <button id="likeBtn" title="More like this">👍</button>
-      <button id="skipBtn" title="Skip (N)">Skip ⏭</button>
+      <button id="skipBtn" title="Skip… (S), or N to just skip">Skip ⏭</button>
       <button id="banBtn" title="Never play this channel on this station again">🚫</button>
       <button id="openSettings2" title="Settings">⚙</button>
     </div>
   </div>
   <div id="next"></div>
+  <div id="skipMenu">
+    <button class="just" id="justSkip" title="Skips without teaching the station anything">Just skip, don't learn from it<kbd>N</kbd></button>
+    <div class="label">Skip and tell Claude why</div>
+    <div class="chips" id="skipReasons"></div>
+    <input id="skipOther" placeholder="Something else… (Enter)">
+  </div>
 </div>
 
 <aside id="settings">
@@ -207,14 +227,37 @@ document.head.appendChild(tag);
 window.onYouTubeIframeAPIReady = () => {
   player = new YT.Player("player", {
     width: "100%", height: "100%",
-    playerVars: { autoplay: 1, rel: 0, playsinline: 1, iv_load_policy: 3 },
+    playerVars: { autoplay: 1, rel: 0, playsinline: 1, iv_load_policy: 3, cc_load_policy: 0 },
     events: {
       onReady: () => { playerReady = true; renderStart(); },
-      onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) { log("finished"); playNext(); } },
+      onStateChange: (e) => {
+        // YouTube can switch account-default captions on a moment after playback starts, so re-apply a few times.
+        if (e.data === YT.PlayerState.PLAYING) [0, 1000, 3000].forEach((d) => setTimeout(applyCaptions, d));
+        if (e.data === YT.PlayerState.ENDED) { log("finished"); playNext(); }
+      },
       onError: (e) => { clientLog(`player error ${e.data} on ${current?.videoId} (${current?.title})`); log("unplayable"); playNext(); },
     },
   });
 };
+
+// ---------- captions ----------
+// The embed follows the YouTube account's caption setting, so re-apply ours on every new video.
+let ccOn = store.get("cp.cc") === "on";
+function applyCaptions() {
+  try {
+    if (ccOn) {
+      player.loadModule("captions");
+      player.setOption("captions", "track", { languageCode: "en" });
+    } else {
+      player.setOption("captions", "track", {});
+      player.unloadModule("captions");
+      player.unloadModule("cc");
+    }
+  } catch {}
+}
+function renderCc() { $("ccBtn").classList.toggle("on", ccOn); $("ccBtn").title = `Captions ${ccOn ? "on" : "off"} (C)`; }
+$("ccBtn").onclick = () => { ccOn = !ccOn; store.set("cp.cc", ccOn ? "on" : "off"); renderCc(); applyCaptions(); toast(`Captions ${ccOn ? "on" : "off"}`, 1500); };
+renderCc();
 
 function ensureQueue() {
   if (queue.length >= 2 || fetching) return fetching;
@@ -241,14 +284,14 @@ async function playNext() {
   return true;
 }
 
-function log(outcome) {
+function log(outcome, reason) {
   if (!current) return;
   let watchedSec = 0, durationSec = current.durationSec || 0;
   try { watchedSec = Math.round(player.getCurrentTime() || 0); durationSec = Math.round(player.getDuration() || 0) || durationSec; } catch {}
   if (outcome === "started") watchedSec = 0;
   api("/api/event", {
     station: stationId, videoId: current.videoId, title: current.title, channelId: current.channelId,
-    channelTitle: current.channelTitle, outcome, watchedSec, durationSec,
+    channelTitle: current.channelTitle, outcome, watchedSec, durationSec, ...(reason ? { reason } : {}),
   }).catch(() => {});
 }
 
@@ -316,13 +359,41 @@ async function start(id) {
 
 // ---------- controls ----------
 $("stationSelect").onchange = (e) => tuneTo(e.target.value);
-$("skipBtn").onclick = () => { log("skipped"); playNext(); };
+// Skip menu: a reason teaches the station; "just skip" (N) doesn't.
+const SKIP_REASONS = ["Not in the mood", "Boring / too slow", "Seen it already", "Wrong for this station", "Too loud / annoying", "Bad video or audio"];
+for (const r of SKIP_REASONS) {
+  const b = document.createElement("button");
+  b.textContent = r;
+  b.onclick = () => skip(r);
+  $("skipReasons").appendChild(b);
+}
+const closeSkipMenu = () => { document.body.classList.remove("skip-open"); $("skipOther").value = ""; };
+function openSkipMenu() {
+  if (!current) return;
+  document.body.classList.add("skip-open");
+}
+function skip(reason) {
+  closeSkipMenu();
+  if (!current || !started) return;
+  if (reason) { log("skipped", reason); toast(`Skipped: ${reason}`, 1800); }
+  else { log("passed"); toast("Skipped (not learning from it)", 1800); }
+  playNext();
+}
+$("skipBtn").onclick = () => (document.body.classList.contains("skip-open") ? closeSkipMenu() : openSkipMenu());
+$("justSkip").onclick = () => skip(null);
+$("skipOther").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.value.trim()) skip(e.target.value.trim().slice(0, 120));
+  if (e.key === "Escape") closeSkipMenu();
+});
+document.addEventListener("click", (e) => {
+  if (document.body.classList.contains("skip-open") && !e.target.closest("#skipMenu, #skipBtn")) closeSkipMenu();
+});
 $("likeBtn").onclick = () => { log("liked"); toast("Noted, more like this."); };
 $("banBtn").onclick = async () => {
   if (!current) return;
   const ch = current;
   await api("/api/lineup/remove", { station: stationId, id: ch.channelId }).catch((e) => toast(e.message));
-  log("skipped");
+  log("skipped", "Removed the whole channel from this station");
   queue = queue.filter((v) => v.channelId !== ch.channelId);
   toast(`Removed ${ch.channelTitle} from this station.`);
   playNext();
@@ -330,10 +401,20 @@ $("banBtn").onclick = async () => {
 };
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea, select")) return;
-  if (e.key === "n" || e.key === "N") $("skipBtn").click();
+  const k = e.key.toLowerCase();
+  if (k === "n") skip(null);
+  if (k === "s") openSkipMenu();
+  if (k === "c") $("ccBtn").click();
+  if (k === "escape") closeSkipMenu();
   const n = Number(e.key);
   if (n >= 1 && n <= 9 && stations[n - 1]) started ? tuneTo(stations[n - 1].id) : start(stations[n - 1].id);
 });
+
+// Clicking the video moves keyboard focus into YouTube's iframe, where our shortcuts can't hear it.
+// Hand focus straight back to the page (the click itself still reaches YouTube's controls).
+window.addEventListener("blur", () => setTimeout(() => {
+  if (document.activeElement?.tagName === "IFRAME") document.activeElement.blur();
+}, 0));
 
 let hideTimer;
 document.addEventListener("mousemove", () => {

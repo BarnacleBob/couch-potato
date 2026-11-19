@@ -331,8 +331,10 @@ async function pickNext(station, exclude = []) {
   const videos = await getPool(station);
   if (!videos.length) throw new Error(`"${station.name}" has no channels yet. Open Settings and build its lineup.`);
 
-  const monthAgo = Date.now() - 30 * 864e5;
-  const seen = new Set([...exclude, ...history.filter((h) => h.outcome === "unplayable" || h.at > monthAgo).map((h) => h.videoId)]);
+  // Played/skipped videos rest for 30 days; "just skip" ones (passed) only for a day; unplayable ones forever.
+  const monthAgo = Date.now() - 30 * 864e5, dayAgo = Date.now() - 864e5;
+  const resting = (h) => h.outcome === "unplayable" || h.at > (h.outcome === "passed" ? dayAgo : monthAgo);
+  const seen = new Set([...exclude, ...history.filter(resting).map((h) => h.videoId)]);
   const capPerChannel = (list, max) => {
     const per = new Map();
     return list.filter((v) => { const n = per.get(v.channelId) || 0; if (n >= max) return false; per.set(v.channelId, n + 1); return true; });
@@ -358,8 +360,9 @@ async function pickNext(station, exclude = []) {
     if (h.outcome in s) s[h.outcome]++;
     stats.set(h.channelTitle, s);
   }
-  const recent = history.slice(-25).map((h) => {
-    const what = h.outcome === "skipped" ? `SKIPPED after ${fmtLen(h.watchedSec)}`
+  // "passed" = the viewer skipped without feedback, so Claude never sees it.
+  const recent = history.filter((h) => h.outcome !== "passed").slice(-25).map((h) => {
+    const what = h.outcome === "skipped" ? `SKIPPED after ${fmtLen(h.watchedSec)}${h.reason ? `, because: "${h.reason}"` : ""}`
       : h.outcome === "finished" ? `watched to the end (${fmtLen(h.durationSec)})`
       : h.outcome === "liked" ? "LIKED" : h.outcome;
     return `- "${h.title}" (${h.channelTitle}): ${what}`;
@@ -370,7 +373,7 @@ async function pickNext(station, exclude = []) {
     L,
     label: "pick",
     effort: "low",
-    system: `You are the programming director of "${station.name}", a personal, always-on TV station. The viewer has it playing in a corner of their screen while they work. Keep a steady, pleasant flow: hold the mood, vary channels and topics so it doesn't get repetitive, and learn from skips and likes. A skip early in a video means "wrong for this station". Avoid partial excerpts, trailers, livestreams and clickbait unless the vibe asks for them.\n\nThe station's vibe:\n${station.vibe}`,
+    system: `You are the programming director of "${station.name}", a personal, always-on TV station. The viewer has it playing in a corner of their screen while they work. Keep a steady, pleasant flow: hold the mood, vary channels and topics so it doesn't get repetitive, and learn from skips and likes. A skip early in a video means "wrong for this station"; when the viewer gives a reason, weigh it (e.g. "not in the mood" is about the moment, "wrong for this station" is about the kind of video). Avoid partial excerpts, trailers, livestreams and clickbait unless the vibe asks for them.\n\nThe station's vibe:\n${station.vibe}`,
     user: [
       `It's ${now}.`,
       `Recently played (oldest first):`, recent.length ? recent.join("\n") : "(nothing yet: this is the first pick)",
@@ -423,8 +426,9 @@ function send(res, code, data, type = "application/json; charset=utf-8") {
 
 const outcomeText = {
   finished: c.green("finished"), skipped: c.yellow("SKIPPED"), liked: c.magenta("LIKED"),
-  unplayable: c.red("unplayable (embedding blocked or removed)"),
+  unplayable: c.red("unplayable (embedding blocked or removed)"), passed: c.dim("just skipped (not learning from it)"),
 };
+let historyWrites = Promise.resolve();
 const num = (x, d) => (x !== "" && x != null && Number.isFinite(+x) && +x >= 0 ? +x : d);
 
 // Every route gets (body, rawBody, query). Station routes take ?station= or body.station.
@@ -500,6 +504,7 @@ const routes = {
     const station = await getStation(b.station);
     const L = stationLog(station.id);
     const { station: _, ...event } = b;
+    if (event.reason) event.reason = String(event.reason).slice(0, 120);
     if (b.outcome === "started") {
       L("event", `▶ ${c.bold(b.title)} ${c.dim(`— ${b.channelTitle} [${fmtLen(b.durationSec)}]`)}`);
       return { ok: true };
@@ -508,11 +513,16 @@ const routes = {
       L("event", c.bold(`📺 tuned to "${station.name}"`));
       return { ok: true };
     }
-    const history = await getHistory(station.id);
-    history.push({ ...event, at: Date.now() });
-    await writeJson(stationFile(station.id, "history.json"), history.slice(-3000));
     const watched = b.outcome === "liked" ? "" : c.dim(` after ${fmtLen(b.watchedSec)} of ${fmtLen(b.durationSec)}`);
-    L("event", `${outcomeText[b.outcome] || b.outcome}: ${b.title} ${c.dim(`— ${b.channelTitle}`)}${watched}`);
+    const why = b.reason ? c.yellow(` because "${b.reason}"`) : "";
+    L("event", `${outcomeText[b.outcome] || b.outcome}: ${b.title} ${c.dim(`— ${b.channelTitle}`)}${watched}${why}`);
+    // Serialize writes so quick back-to-back events can't overwrite each other.
+    historyWrites = historyWrites.then(async () => {
+      const history = await getHistory(station.id);
+      history.push({ ...event, at: Date.now() });
+      await writeJson(stationFile(station.id, "history.json"), history.slice(-3000));
+    }).catch((e) => L("error", `saving history: ${e.message}`));
+    await historyWrites;
     return { ok: true };
   },
   // The page reports its own errors here so they show up in this console too.

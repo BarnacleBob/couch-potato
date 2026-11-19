@@ -41,15 +41,22 @@ You can edit stations in the Settings panel, which writes to these files. **Comm
 - **Pool**: up to 15 of the latest uploads per channel, from YouTube's public RSS feeds (the `UULF` playlist, which leaves out Shorts). No YouTube API key needed.
 - **Length filter**: the feed doesn't include video length, so it's read from each video's page once and cached in `data/durations.json`.
 - **Picks**: Claude sees about 90 candidates that fit the length range (max 3 per channel), your recent plays, skips and likes on that station, and the time of day.
-- **History** (`data/<station>/history.json`): finished, skipped (with how long you watched), liked, or unplayable. Nothing replays within 30 days.
+- **History** (`data/<station>/history.json`): finished, skipped (with how long you watched and your reason), liked, passed (skipped without feedback, never shown to Claude), or unplayable. Nothing replays within 30 days, except passed videos, which can come back after a day.
 
 The server console logs every step: feed fetches, length lookups, the filter funnel, each Claude call with tokens and timing, and every pick with its reason.
 
 ## Controls
 
-- Hover the video for the bar.
-- **1-9** switch stations. **N** skips.
-- 👍 means "more like this". 🚫 removes the channel from the current station.
+Hover the video to bring up the bar.
+
+| Key | Button | What it does |
+|---|---|---|
+| **1-9** | station dropdown | Switch stations |
+| **S** | Skip ⏭ | Skip with a reason ("Not in the mood", "Wrong for this station", or your own). Claude learns from it. |
+| **N** | "Just skip" in the skip menu | Skip without teaching the station anything. The video can come back after a day. |
+| **C** | CC | Captions on/off. Off by default, and remembered. |
+| | 👍 | More like this |
+| | 🚫 | Remove this channel from the current station |
 
 ## Known limits
 
